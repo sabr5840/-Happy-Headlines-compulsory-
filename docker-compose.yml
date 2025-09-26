@@ -149,6 +149,29 @@ services:
     depends_on:
       - profanity_db
 
+  draft_db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: happy_user
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: happyheadlines_drafts
+    volumes:
+      - draft-db-data:/var/lib/postgresql/data
+      - ./db/draft_init.sql:/docker-entrypoint-initdb.d/draft_init.sql:ro
+
+  draftservice:
+    build: ./microservice-draft
+    image: happyheadlines-draftservice:latest
+    ports:
+      - "3002:3002"
+    environment:
+      DB_USER: happy_user
+      DB_PASSWORD: secretpassword
+      DB_HOST: draft_db
+      DB_NAME: happyheadlines_drafts
+    depends_on:
+      - draft_db
+
 volumes:
   db-europe-data:
   db-asia-data:
@@ -160,6 +183,7 @@ volumes:
   db-global-data:
   comment-db-data:
   profanity-db-data:
+  draft-db-data:
 
 networks:
   default:
