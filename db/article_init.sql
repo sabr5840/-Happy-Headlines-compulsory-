@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS articles (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    region VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);

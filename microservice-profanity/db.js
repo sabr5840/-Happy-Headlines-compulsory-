@@ -1,0 +1,12 @@
+// db.js
+const { Pool } = require('pg');
+
+const pool = new Pool({
+  user: process.env.DB_USER || 'happy_user',
+  password: process.env.DB_PASSWORD || 'secretpassword',
+  host: 'profanity_db',
+  database: 'happyheadlines_profanity',
+  port: 5432,
+});
+
+module.exports = pool;

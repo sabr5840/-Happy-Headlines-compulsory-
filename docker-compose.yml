@@ -1,0 +1,167 @@
+version: '3.8'
+
+services:
+  db_europe:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: happy_user
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: happyheadlines_europe
+    volumes:
+      - db-europe-data:/var/lib/postgresql/data
+      - ./db/article_init.sql:/docker-entrypoint-initdb.d/article_init.sql:ro
+
+  db_asia:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: happy_user
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: happyheadlines_asia
+    volumes:
+      - db-asia-data:/var/lib/postgresql/data
+      - ./db/article_init.sql:/docker-entrypoint-initdb.d/article_init.sql:ro
+
+  db_africa:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: happy_user
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: happyheadlines_africa
+    volumes:
+      - db-africa-data:/var/lib/postgresql/data
+      - ./db/article_init.sql:/docker-entrypoint-initdb.d/article_init.sql:ro
+
+  db_northamerica:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: happy_user
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: happyheadlines_northamerica
+    volumes:
+      - db-northamerica-data:/var/lib/postgresql/data
+      - ./db/article_init.sql:/docker-entrypoint-initdb.d/article_init.sql:ro
+
+  db_southamerica:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: happy_user
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: happyheadlines_southamerica
+    volumes:
+      - db-southamerica-data:/var/lib/postgresql/data
+      - ./db/article_init.sql:/docker-entrypoint-initdb.d/article_init.sql:ro
+
+  db_oceania:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: happy_user
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: happyheadlines_oceania
+    volumes:
+      - db-oceania-data:/var/lib/postgresql/data
+      - ./db/article_init.sql:/docker-entrypoint-initdb.d/article_init.sql:ro
+
+  db_antarctica:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: happy_user
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: happyheadlines_antarctica
+    volumes:
+      - db-antarctica-data:/var/lib/postgresql/data
+      - ./db/article_init.sql:/docker-entrypoint-initdb.d/article_init.sql:ro
+
+  db_global:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: happy_user
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: happyheadlines_global
+    volumes:
+      - db-global-data:/var/lib/postgresql/data
+      - ./db/article_init.sql:/docker-entrypoint-initdb.d/article_init.sql:ro
+
+  articleservice:
+    build: ./microservice-article
+    image: happyheadlines-articleservice:latest
+    ports:
+      - "3000:3000"
+    environment:
+      DB_USER: happy_user
+      DB_PASSWORD: secretpassword
+    depends_on:
+      - db_europe
+      - db_asia
+      - db_africa
+      - db_northamerica
+      - db_southamerica
+      - db_oceania
+      - db_antarctica
+      - db_global
+    #deploy:
+      #replicas: 3
+      #restart_policy:
+        #condition: on-failure
+
+  comment_db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: happy_user
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: happyheadlines_comments
+    volumes:
+      - comment-db-data:/var/lib/postgresql/data
+      - ./db/comment_init.sql:/docker-entrypoint-initdb.d/comment_init.sql:ro
+
+  commentservice:
+    build: ./microservice-comment
+    image: happyheadlines-commentservice:latest
+    ports:
+      - "3001:3001"
+    environment:
+      DB_USER: happy_user
+      DB_PASSWORD: secretpassword
+      DB_HOST: comment_db
+      DB_NAME: happyheadlines_comments
+    depends_on:
+      - comment_db
+
+  profanity_db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: happy_user
+      POSTGRES_PASSWORD: secretpassword
+      POSTGRES_DB: happyheadlines_profanity
+    volumes:
+      - profanity-db-data:/var/lib/postgresql/data
+      - ./db/profanity_init.sql:/docker-entrypoint-initdb.d/profanity_init.sql:ro
+
+  profanityservice:
+    build: ./microservice-profanity
+    image: happyheadlines-profanityservice:latest
+    ports:
+      - "4000:4000"
+    environment:
+      DB_USER: happy_user
+      DB_PASSWORD: secretpassword
+      DB_HOST: profanity_db
+      DB_NAME: happyheadlines_profanity
+    depends_on:
+      - profanity_db
+
+volumes:
+  db-europe-data:
+  db-asia-data:
+  db-africa-data:
+  db-northamerica-data:
+  db-southamerica-data:
+  db-oceania-data:
+  db-antarctica-data:
+  db-global-data:
+  comment-db-data:
+  profanity-db-data:
+
+networks:
+  default:
+    external: true
+    name: happyheadlines_net
