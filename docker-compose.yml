@@ -162,6 +162,8 @@ services:
   draftservice:
     build: ./microservice-draft
     image: happyheadlines-draftservice:latest
+    volumes:
+      - ./microservice-draft/logs:/app/logs   # <--- denne linje er vigtig
     ports:
       - "3002:3002"
     environment:
@@ -171,6 +173,7 @@ services:
       DB_NAME: happyheadlines_drafts
     depends_on:
       - draft_db
+
 
 volumes:
   db-europe-data:

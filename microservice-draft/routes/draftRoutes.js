@@ -1,66 +1,94 @@
+// routes/draftRoutes.js
 const express = require('express');
 const router = express.Router();
 const draftService = require('../services/draftService');
+const logger = require('../logger');
 
-// GET alle drafts
+// GET: Hent alle drafts
 router.get('/', async (req, res) => {
   try {
-    const drafts = await draftService.getDrafts();
+    const drafts = await draftService.getAllDrafts();
+    logger.info('Fetched all drafts', { count: drafts.length });
     res.json(drafts);
   } catch (err) {
-    console.error(err);
+    logger.error('GET /drafts failed', { error: err.message });
     res.status(500).json({ error: 'Kunne ikke hente drafts' });
   }
 });
 
-// GET ét draft
+// GET: Hent et draft efter ID
 router.get('/:id', async (req, res) => {
   try {
     const draft = await draftService.getDraftById(req.params.id);
-    if (!draft) return res.status(404).json({ error: 'Draft ikke fundet' });
+    if (!draft) {
+      logger.warn('Draft not found', { draftId: req.params.id });
+      return res.status(404).json({ error: 'Draft ikke fundet' });
+    }
+    logger.info('Fetched draft by id', { draftId: draft.id });
     res.json(draft);
   } catch (err) {
-    console.error(err);
+    logger.error('GET /drafts/:id failed', { error: err.message });
     res.status(500).json({ error: 'Kunne ikke hente draft' });
   }
 });
 
-// POST opret draft
+// POST: Opret et nyt draft
 router.post('/', async (req, res) => {
   try {
     const { title, content, author } = req.body;
+
     if (!title || !content || !author) {
+      logger.warn('Draft creation failed - missing fields', { body: req.body });
       return res.status(400).json({ error: 'title, content og author er påkrævet' });
     }
+
     const newDraft = await draftService.createDraft(title, content, author);
+    logger.info('Draft created via API', { draftId: newDraft.id, author });
     res.status(201).json(newDraft);
   } catch (err) {
-    console.error(err);
+    logger.error('POST /drafts failed', { error: err.message });
     res.status(500).json({ error: 'Kunne ikke oprette draft' });
   }
 });
 
-// PUT opdater draft
+// PUT: Opdater et draft
 router.put('/:id', async (req, res) => {
   try {
     const { title, content, status } = req.body;
-    const updated = await draftService.updateDraft(req.params.id, title, content, status);
-    if (!updated) return res.status(404).json({ error: 'Draft ikke fundet' });
-    res.json(updated);
+    const updatedDraft = await draftService.updateDraft(
+      req.params.id,
+      title,
+      content,
+      status
+    );
+
+    if (!updatedDraft) {
+      logger.warn('Draft update failed - not found', { draftId: req.params.id });
+      return res.status(404).json({ error: 'Draft ikke fundet' });
+    }
+
+    logger.info('Draft updated', { draftId: updatedDraft.id, status: updatedDraft.status });
+    res.json(updatedDraft);
   } catch (err) {
-    console.error(err);
+    logger.error('PUT /drafts/:id failed', { error: err.message });
     res.status(500).json({ error: 'Kunne ikke opdatere draft' });
   }
 });
 
-// DELETE slet draft
+// DELETE: Slet et draft
 router.delete('/:id', async (req, res) => {
   try {
     const deleted = await draftService.deleteDraft(req.params.id);
-    if (!deleted) return res.status(404).json({ error: 'Draft ikke fundet' });
+
+    if (!deleted) {
+      logger.warn('Draft delete failed - not found', { draftId: req.params.id });
+      return res.status(404).json({ error: 'Draft ikke fundet' });
+    }
+
+    logger.info('Draft deleted', { draftId: req.params.id });
     res.json({ message: 'Draft slettet' });
   } catch (err) {
-    console.error(err);
+    logger.error('DELETE /drafts/:id failed', { error: err.message });
     res.status(500).json({ error: 'Kunne ikke slette draft' });
   }
 });

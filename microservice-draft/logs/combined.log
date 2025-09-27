@@ -1,0 +1,6 @@
+{"draftId":4,"level":"info","message":"Draft created in DB","timestamp":"2025-09-27T17:49:57.324Z"}
+{"author":"Sabrina Hammerich","draftId":4,"level":"info","message":"Draft created via API","timestamp":"2025-09-27T17:49:57.326Z"}
+{"count":1,"level":"info","message":"Fetched all drafts","timestamp":"2025-09-27T17:50:02.469Z"}
+{"draftId":4,"level":"info","message":"Fetched draft by id","timestamp":"2025-09-27T17:50:11.137Z"}
+{"draftId":4,"level":"info","message":"Draft updated","status":null,"timestamp":"2025-09-27T17:50:14.503Z"}
+{"draftId":"4","level":"info","message":"Draft deleted","timestamp":"2025-09-27T17:50:18.635Z"}
