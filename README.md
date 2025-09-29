@@ -166,3 +166,6 @@ Dette projekt viser:
 - Fuldt testet via Postman (Create, Read, Update, Delete fungerer)
 
 Systemet kan skaleres horisontalt og vertikalt, og det demonstrerer en distribueret arkitektur, hvor både services og data er shardet.
+
+
+- Sabrina og Mathilde
