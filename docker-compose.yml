@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+  # --- Regionale DB'er ---
   db_europe:
     image: postgres:15
     environment:
@@ -81,6 +82,15 @@ services:
       - db-global-data:/var/lib/postgresql/data
       - ./db/article_init.sql:/docker-entrypoint-initdb.d/article_init.sql:ro
 
+  # --- Jaeger (Tracing backend) ---
+  jaeger:
+    image: jaegertracing/all-in-one:1.54
+    ports:
+      - "16686:16686"   # UI
+      - "14268:14268"   # HTTP ingest (Jaeger exporter)
+    # bruger default-netværket (happyheadlines_net)
+
+  # --- Services ---
   articleservice:
     build: ./microservice-article
     image: happyheadlines-articleservice:latest
@@ -89,6 +99,9 @@ services:
     environment:
       DB_USER: happy_user
       DB_PASSWORD: secretpassword
+      # tracing                                  
+      OTEL_SERVICE_NAME: articleservice          
+      JAEGER_ENDPOINT: http://jaeger:14268/api/traces  
     depends_on:
       - db_europe
       - db_asia
@@ -98,10 +111,7 @@ services:
       - db_oceania
       - db_antarctica
       - db_global
-    #deploy:
-      #replicas: 3
-      #restart_policy:
-        #condition: on-failure
+      - jaeger          
 
   comment_db:
     image: postgres:15
@@ -123,8 +133,13 @@ services:
       DB_PASSWORD: secretpassword
       DB_HOST: comment_db
       DB_NAME: happyheadlines_comments
+      # tracing                                  
+      OTEL_SERVICE_NAME: commentservice          
+      JAEGER_ENDPOINT: http://jaeger:14268/api/traces
+      PROFANITY_URL: http://profanityservice:4000
     depends_on:
       - comment_db
+      - jaeger          
 
   profanity_db:
     image: postgres:15
@@ -146,8 +161,12 @@ services:
       DB_PASSWORD: secretpassword
       DB_HOST: profanity_db
       DB_NAME: happyheadlines_profanity
+      # tracing                                  
+      OTEL_SERVICE_NAME: profanityservice        
+      JAEGER_ENDPOINT: http://jaeger:14268/api/traces  
     depends_on:
       - profanity_db
+      - jaeger          
 
   draft_db:
     image: postgres:15
@@ -158,22 +177,35 @@ services:
     volumes:
       - draft-db-data:/var/lib/postgresql/data
       - ./db/draft_init.sql:/docker-entrypoint-initdb.d/draft_init.sql:ro
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}" ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   draftservice:
-    build: ./microservice-draft
-    image: happyheadlines-draftservice:latest
-    volumes:
-      - ./microservice-draft/logs:/app/logs   # <--- denne linje er vigtig
-    ports:
-      - "3002:3002"
-    environment:
-      DB_USER: happy_user
-      DB_PASSWORD: secretpassword
-      DB_HOST: draft_db
-      DB_NAME: happyheadlines_drafts
-    depends_on:
-      - draft_db
-
+      build: ./microservice-draft
+      image: happyheadlines-draftservice:latest
+      volumes:
+        - ./microservice-draft/logs:/app/logs
+      ports:
+        - "3002:3002"
+      environment:
+        DB_USER: happy_user
+        DB_PASSWORD: secretpassword
+        DB_HOST: draft_db
+        DB_NAME: happyheadlines_drafts
+        # tracing
+        OTEL_SERVICE_NAME: draftservice
+        JAEGER_ENDPOINT: http://jaeger:14268/api/traces
+        # (valgfrit – hjælper fejlfinding)
+        OTEL_LOG_LEVEL: info
+      depends_on:
+        draft_db:
+          condition: service_healthy
+        jaeger:
+          condition: service_started
+      restart: unless-stopped      
 
 volumes:
   db-europe-data:

@@ -1,3 +1,4 @@
+require('./tracing');
 const express = require('express');
 const app = express();
 const draftRoutes = require('./routes/draftRoutes');

@@ -1,4 +1,5 @@
 // server.js
+require('./tracing');
 const express = require('express');
 const app = express();
 const profanityRoutes = require('./routes/profanityRoutes');

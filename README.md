@@ -11,12 +11,12 @@ Dette projekt er en nyhedsplatform med microservices, z-axis split, to cache-lag
 ## Arkitektur
 
 - **ArticleService** (Node/Express, port 3000)
-  - CRUD på artikler i regionsopdelte Postgres-databaser (europe, asia osv.)
-  - **ArticleCache**: preloader sidste 14 dage ved opstart og periodisk
+    - CRUD på artikler i regionsopdelte Postgres-databaser (europe, asia osv.)
+    - **ArticleCache**: preloader sidste 14 dage ved opstart og periodisk
 - **CommentService** (Node/Express, port 3001)
-  - Opret/hent/slet kommentarer (fælles Comment-DB)
-  - **CommentCache**: LRU 30 (cache-miss approach)
-  - Kalder ProfanityService med circuit breaker
+    - Opret/hent/slet kommentarer (fælles Comment-DB)
+    - **CommentCache**: LRU 30 (cache-miss approach)
+    - Kalder ProfanityService med circuit breaker
 - **ProfanityService** (port 4000), DraftService (port 3002)
 - **PostgreSQL**: 8 region-DB’er - 1 til kommentarer og 1 til profanity
 
@@ -45,17 +45,48 @@ docker compose down
 ```
 
 ---
+## Distributed tracing – OpenTelemetry og Jaeger indsat
 
+**Formål:** At kunne følge et request på tværs af services (fx `commentservice` ➝ `profanityservice`) uden at tracen “knækker”.  
+Vi bruger OpenTelemetry (auto‑instrumenteret i Node) og eksporterer til **Jaeger**.
+
+**Hvad er sat op?**
+- Alle services loader `./tracing.js` tidligt i `server.js` (øverst: `require('./tracing')`).
+- I `docker-compose.yml` har hver service miljøvariabler:
+  ```yaml
+  OTEL_SERVICE_NAME: <servicenavn>   # articleservice | commentservice | profanityservice | draftservice
+  JAEGER_ENDPOINT: http://jaeger:14268/api/traces
+  ```
+- En Jaeger‑container kører som en del af compose:
+    - UI: <http://localhost:16686>
+    - Ingest (HTTP): `jaeger:14268` (til exporter)
+
+**Sådan ser du traces**
+1. Åbn **Jaeger UI**: <http://localhost:16686>
+2. Vælg en service i *Service*-dropdown (`articleservice`, `commentservice`, `profanityservice`, `draftservice`).
+3. Generér trafik, fx:
+   ```bash
+   # artikelkald (giver DB-spans i articleservice)
+   curl -s http://localhost:3000/articles/europe > /dev/null
+   curl -s http://localhost:3000/articles/europe > /dev/null
+
+   # kommentar POST (kalder profanityservice; viser cross-service trace)
+   curl -s -X POST http://localhost:3001/comments      -H 'Content-Type: application/json'      -d '{"article_id":1,"author":"Ana","content":"Nice article!"}' > /dev/null
+   ```
+4. Tryk **Find Traces**. Åbn f.eks. *POST /comments* og se spans fra **commentservice** og **profanityservice** i samme trace.
+5. (Valgfrit) Brug **Deep Dependency Graph** for et overblik over servicekald.
+
+---
 ## Endpoints
 
 ### ArticleService (port 3000)
 - Status: `GET /` → “HappyHeadlines API running 🚀”
 - Artikler pr. region:
-  - `POST   /articles/:region`      (body: `{ "title": "...", "content": "..." }`)
-  - `GET    /articles/:region`
-  - `GET    /articles/:region/:id`
-  - `PUT    /articles/:region/:id`  (body: `title`, `content`)
-  - `DELETE /articles/:region/:id`
+    - `POST   /articles/:region`      (body: `{ "title": "...", "content": "..." }`)
+    - `GET    /articles/:region`
+    - `GET    /articles/:region/:id`
+    - `PUT    /articles/:region/:id`  (body: `title`, `content`)
+    - `DELETE /articles/:region/:id`
 - **Metrics**: `GET /metrics` → `{ cache_hits, cache_misses, hit_ratio }`
 
 Eksempel:
@@ -72,10 +103,10 @@ Content-Type: application/json
 ### CommentService (port 3001)
 - Status: `GET /` → “CommentService running 🚀”
 - Kommentarer:
-  - `POST   /comments`                (body: `{ "article_id": 1, "author": "Sabrina", "content": "..." }`)
-  - `GET    /comments`
-  - `GET    /comments/article/:id`
-  - `DELETE /comments/:id`
+    - `POST   /comments`                (body: `{ "article_id": 1, "author": "Sabrina", "content": "..." }`)
+    - `GET    /comments`
+    - `GET    /comments/article/:id`
+    - `DELETE /comments/:id`
 - **Metrics**: `GET /metrics` → `{ cache_hits, cache_misses, hit_ratio }`
 
 ---
@@ -155,4 +186,4 @@ README.md
 
 ---
 
-Sabrina & Mathilde
+Sabrina & Mathilde 

@@ -1,4 +1,5 @@
 // microservice-comment/server.js
+require('./tracing');
 const express = require('express');
 const app = express();
 const commentRoutes = require('./routes/commentRoutes');

@@ -1,4 +1,5 @@
 // microservice-article/server.js
+require('./tracing');
 const express = require('express');
 const app = express();
 
