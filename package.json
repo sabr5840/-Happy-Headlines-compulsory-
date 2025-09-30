@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "lru-cache": "^11.2.2",
+    "node-cache": "^5.1.2"
+  }
+}

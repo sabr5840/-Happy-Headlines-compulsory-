@@ -1,110 +1,64 @@
-# HappyHeadlines - Distributed Article Service
+# HappyHeadlines – Distributed Article & Comment Service (med caching)
 
-Dette projekt implementerer en **REST-baseret ArticleService**, som kan udføre CRUD-operationer (Create, Read, Update, Delete) på artikler.  
-Systemet er designet til at demonstrere **microservice-arkitektur**, **x-axis split** og **z-axis split**.
+Dette projekt er en nyhedsplatform med microservices, z-axis split, to cache-lag og metrics:
+
+- **ArticleCache**: offline/periodisk preload af artikler fra seneste 14 dage og cache-first opslag
+- **CommentCache**: LRU (Least Recently Used) for maks 30 nøgler (pr. `article_id`-liste) med cache-miss approach
+- **/metrics** på begge services (hit/miss og hit ratio)
 
 ---
 
 ## Arkitektur
 
-### 1. ArticleService (X-axis split)
-- ArticleService implementeres som en **REST API** i Node.js/Express.
-- API’et tilbyder CRUD-endpoints til artikler:
-  - `POST /articles/:region` → opret artikel i en given region
-  - `GET /articles/:region` → hent alle artikler fra en given region
-  - `GET /articles/:region/:id` → hent en specifik artikel
-  - `PUT /articles/:region/:id` → opdater en artikel
-  - `DELETE /articles/:region/:id` → slet en artikel
-- Servicen kører i **3 instanser** bag en Docker Swarm load balancer.  
-  Det betyder, at forespørgsler automatisk fordeles mellem instanserne.
-
-### 2. ArticleDatabase (Z-axis split)
-For at håndtere global og regional opdeling af data, er databasen **shardet pr. region**:
-
-- `db_africa`
-- `db_antarctica`
-- `db_asia`
-- `db_europe`
-- `db_northamerica`
-- `db_oceania`
-- `db_southamerica`
-- `db_global`
-
-Hver database kører som en selvstændig PostgreSQL-container.  
-Artikler oprettes i den database, som matcher `region`-parameteren i requestet.
+- **ArticleService** (Node/Express, port 3000)
+  - CRUD på artikler i regionsopdelte Postgres-databaser (europe, asia osv.)
+  - **ArticleCache**: preloader sidste 14 dage ved opstart og periodisk
+- **CommentService** (Node/Express, port 3001)
+  - Opret/hent/slet kommentarer (fælles Comment-DB)
+  - **CommentCache**: LRU 30 (cache-miss approach)
+  - Kalder ProfanityService med circuit breaker
+- **ProfanityService** (port 4000), DraftService (port 3002)
+- **PostgreSQL**: 8 region-DB’er - 1 til kommentarer og 1 til profanity
 
 ---
 
-## Teknologier
+## Opsætning af projekt
 
-- **Node.js / Express** → REST API
-- **PostgreSQL** → Databasesystem
-- **Docker & Docker Swarm** → Containerisering, clustering og load balancing
-- **pg (node-postgres)** → Database client
-- **Postman** → Test af API
+### Forudsætninger
+- Docker Desktop
 
----
-
-## Projektstruktur og forklaring af filer
-
-```
-happyheadlines/
-│
-├── server.js               
-│   # Opsætter Express serveren, registrerer routes og starter API’et på port 3000.
-│
-├── db.js                   
-│   # Indeholder connection pools til PostgreSQL. 
-│   # Har en funktion getPool(region), der vælger den rigtige database baseret på region.
-│
-├── services/
-│   └── articleService.js   
-│       # Indeholder logikken for CRUD-operationer. 
-│       # Funktionerne bruger getPool(region) til at vælge den rigtige database.
-│
-├── routes/
-│   └── articleRoutes.js    
-│       # Definerer alle API endpoints (CRUD). 
-│       # Kalder metoder fra articleService.js og sender response tilbage til klienten.
-│
-├── docker-compose.yml      
-│   # Opretter 8 PostgreSQL-databaser (kontinent + global).
-│   # Opretter 3 replikaer af ArticleService for x-axis skalering.
-│
-└── README.md               
-    # Dokumentation (denne fil).
-```
-
----
-
-## Sådan kører du projektet
-
-### 1. Byg og deploy
+### Start
 ```bash
-docker build -t happyheadlines-articleservice .
-docker stack deploy -c docker-compose.yml happyheadlines
+# i mappen med docker-compose.yml
+docker network create happyheadlines_net    # skal kun gøres 1 gang
+docker compose up --build -d
 ```
 
-Dette opretter:
-- 3 instanser af `happyheadlines_articleservice`
-- 8 PostgreSQL-databaser (1 pr. kontinent + global)
-
-### 2. Verificer services
+Tjek at alt kører:
 ```bash
-docker service ls
+docker compose ps
 ```
 
-Du burde se:
-- `happyheadlines_articleservice` (3/3 replicas)
-- `happyheadlines_db_europe`, `happyheadlines_db_asia`, osv. (alle 1/1)
+### Stop
+```bash
+docker compose down
+```
 
 ---
 
-## Test af API i Postman
+## Endpoints
 
-Vi har testet CRUD-operationerne på forskellige regioner:
+### ArticleService (port 3000)
+- Status: `GET /` → “HappyHeadlines API running 🚀”
+- Artikler pr. region:
+  - `POST   /articles/:region`      (body: `{ "title": "...", "content": "..." }`)
+  - `GET    /articles/:region`
+  - `GET    /articles/:region/:id`
+  - `PUT    /articles/:region/:id`  (body: `title`, `content`)
+  - `DELETE /articles/:region/:id`
+- **Metrics**: `GET /metrics` → `{ cache_hits, cache_misses, hit_ratio }`
 
-### Create (POST)
+Eksempel:
 ```http
 POST http://localhost:3000/articles/europe
 Content-Type: application/json
@@ -115,57 +69,90 @@ Content-Type: application/json
 }
 ```
 
-### Read all (GET)
-```http
-GET http://localhost:3000/articles/europe
+### CommentService (port 3001)
+- Status: `GET /` → “CommentService running 🚀”
+- Kommentarer:
+  - `POST   /comments`                (body: `{ "article_id": 1, "author": "Sabrina", "content": "..." }`)
+  - `GET    /comments`
+  - `GET    /comments/article/:id`
+  - `DELETE /comments/:id`
+- **Metrics**: `GET /metrics` → `{ cache_hits, cache_misses, hit_ratio }`
+
+---
+
+## Caching & Metrics
+
+### Dashboard
+Åbn http://localhost:3000/dashboard for at se et live-dashboard med hit/miss og hit ratio for ArticleService og CommentService.
+
+
+### ArticleCache (14 dage)
+- **Preload** ved opstart og periodisk (job) af artikler fra seneste 14 dage
+- **Cache-first**: opslag går først i cachen; ved miss hentes kun 14 dage fra DB og lægges i cache
+- **Metrics** på `/metrics` (port 3000)
+
+**Sådan vises det:**
+1. Kald to gange:
+   ```
+   GET http://localhost:3000/articles/europe
+   ```
+2. Se:
+   ```
+   GET http://localhost:3000/metrics
+   ```
+   → `cache_hits` > 0, `hit_ratio` > 0
+
+**Vis at “gamle” artikler ikke kommer med i preload-listen:**
+```bash
+# backdatér fx id=3 til 60 dage
+docker compose exec db_europe psql -U happy_user -d happyheadlines_europe   -c "UPDATE articles SET created_at = NOW() - INTERVAL '60 days' WHERE id = 3;"
+
+# genstart for at preloade igen
+docker compose restart articleservice
+
+# nu burde artiklen ikke være med i listen:
+curl http://localhost:3000/articles/europe
 ```
 
-### Read one (GET)
-```http
-GET http://localhost:3000/articles/europe/1
+### CommentCache (LRU 30)
+- **Cache-miss approach**: første hent fra DB, derefter cache‐hit
+- **LRU**: maks **30** `article_id`-nøgler; mindst nyligt brugte smides automatisk ud
+- **Metrics** på `/metrics` (port 3001)
+
+**Sådan vises det:**
+1. Kald to gange:
+   ```
+   GET http://localhost:3001/comments/article/1
+   ```
+2. Se:
+   ```
+   GET http://localhost:3001/metrics
+   ```
+   → `cache_hits` > 0
+
+
+## Projektstruktur
 ```
+microservice-article/
+  server.js
+  db.js
+  routes/articleRoutes.js
+  services/articleService.js
+  cache.js           # ArticleCache (14 dage)
+  metrics.js         # metrics endpoint
 
-### Update (PUT)
-```http
-PUT http://localhost:3000/articles/europe/1
-Content-Type: application/json
+microservice-comment/
+  server.js
+  db.js
+  routes/commentRoutes.js
+  services/commentService.js
+  cache.js           # LRU (max 30)
+  metrics.js         # metrics endpoint
 
-{
-  "title": "Updated Europe Title",
-  "content": "Dette er en opdateret artikel"
-}
-```
-
-### Delete (DELETE)
-```http
-DELETE http://localhost:3000/articles/europe/1
+docker-compose.yml
+README.md
 ```
 
 ---
 
-## Load balancing test
-For at se load balancing i aktion:
-```bash
-docker service ps happyheadlines_articleservice
-```
-
-Send mange requests hurtigt (fx med Postman Runner eller `ab`):
-```bash
-ab -n 50 -c 10 http://localhost:3000/articles/europe
-```
-
-Requests fordeles mellem de 3 instanser af ArticleService.
-
----
-
-## Konklusion
-Dette projekt viser:
-- **CRUD endpoints** til artikler (REST API)
-- **X-axis split** med load balancing (3 ArticleService instanser)
-- **Z-axis split** med 8 PostgreSQL-databaser (kontinenter + global)
-- Fuldt testet via Postman (Create, Read, Update, Delete fungerer)
-
-Systemet kan skaleres horisontalt og vertikalt, og det demonstrerer en distribueret arkitektur, hvor både services og data er shardet.
-
-
-- Sabrina og Mathilde
+Sabrina & Mathilde

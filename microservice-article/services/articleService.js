@@ -1,49 +1,74 @@
-const { getPool } = require('../db'); // brug getPool fra db.js
+// microservice-article/services/articleService.js
+const { getPool } = require('../db');
+const {
+  getArticlesFromCache,
+  setArticlesInCache,
+  getArticleFromCache,
+  setArticleInCache,
+  invalidateArticle,
+  preloadRecentArticlesForRegion
+} = require('../cache');
 
-// Hent alle artikler fra en bestemt region
+// Hent alle artikler for en region (først cache, ellers DB → cache)
 async function getArticles(region) {
+  const cached = getArticlesFromCache(region);
+  if (cached) return cached;
+
   const pool = getPool(region);
-  const result = await pool.query(
-    'SELECT * FROM articles ORDER BY created_at DESC'
+  const { rows } = await pool.query(
+      `SELECT * FROM articles ORDER BY created_at DESC`
   );
-  return result.rows;
+
+  // læg i cache (selvom listen kan være bredere end 14 dage – preload håndterer 14-dages-snapshot)
+  setArticlesInCache(region, rows);
+  return rows;
 }
 
-// Hent én artikel fra en bestemt region
 async function getArticleById(region, id) {
+  const c = getArticleFromCache(region, id);
+  if (c) return c;
+
   const pool = getPool(region);
-  const result = await pool.query('SELECT * FROM articles WHERE id = $1', [id]);
-  return result.rows[0];
+  const { rows } = await pool.query(
+      'SELECT * FROM articles WHERE id = $1',
+      [id]
+  );
+  const article = rows[0];
+  if (article) setArticleInCache(region, article);
+  return article;
 }
 
-// Opret artikel i den database der matcher region
 async function createArticle(title, content, region) {
   const pool = getPool(region);
-  const result = await pool.query(
-    'INSERT INTO articles (title, content, region) VALUES ($1, $2, $3) RETURNING *',
-    [title, content, region]
+  const { rows } = await pool.query(
+      'INSERT INTO articles (title, content, region) VALUES ($1, $2, $3) RETURNING *',
+      [title, content, region]
   );
-  return result.rows[0];
+  const article = rows[0];
+  setArticleInCache(region, article);
+  return article;
 }
 
-// Opdater artikel i en bestemt region
 async function updateArticle(region, id, title, content) {
   const pool = getPool(region);
-  const result = await pool.query(
-    'UPDATE articles SET title = $1, content = $2 WHERE id = $3 RETURNING *',
-    [title, content, id]
+  const { rows } = await pool.query(
+      'UPDATE articles SET title = $1, content = $2 WHERE id = $3 RETURNING *',
+      [title, content, id]
   );
-  return result.rows[0];
+  const article = rows[0];
+  if (article) setArticleInCache(region, article);
+  return article;
 }
 
-// Slet artikel i en bestemt region
 async function deleteArticle(region, id) {
   const pool = getPool(region);
-  const result = await pool.query(
-    'DELETE FROM articles WHERE id = $1 RETURNING *',
-    [id]
+  const { rows } = await pool.query(
+      'DELETE FROM articles WHERE id = $1 RETURNING *',
+      [id]
   );
-  return result.rows[0];
+  const deleted = rows[0];
+  if (deleted) invalidateArticle(region, id);
+  return deleted;
 }
 
 module.exports = {
