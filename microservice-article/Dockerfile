@@ -14,5 +14,5 @@ COPY . .
 # Expose porten som ArticleService bruger
 EXPOSE 3000
 
-# Start serveren
+# Start serveren.
 CMD ["npm", "start"]
