@@ -1,0 +1,83 @@
+name: Build & Push Docker images (GHCR)
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write  # nødvendig for at pushe til GHCR
+
+env:
+  REGISTRY: ghcr.io
+  OWNER: ${{ github.repository_owner }}
+
+jobs:
+  build-and-push:
+    name: Build & push (matrix)
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: articleservice
+            context: ./microservice-article
+            dockerfile: ./microservice-article/Dockerfile
+          - service: commentservice
+            context: ./microservice-comment
+            dockerfile: ./microservice-comment/Dockerfile
+          - service: draftservice
+            context: ./microservice-draft
+            dockerfile: ./microservice-draft/Dockerfile
+          - service: profanityservice
+            context: ./microservice-profanity
+            dockerfile: ./microservice-profanity/Dockerfile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags
+        id: meta
+        shell: bash
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          DATE_TAG="v$(date +%Y%m%d)-${{ github.run_number }}"
+          # tving owner til lowercase (krav til docker image navne)
+          OWNER_LC="$(echo "${{ env.OWNER }}" | tr '[:upper:]' '[:lower:]')"
+          IMAGE="${{ env.REGISTRY }}/${OWNER_LC}/${{ matrix.service }}"
+          {
+            echo "image=${IMAGE}"
+            echo "tag_latest=${IMAGE}:latest"
+            echo "tag_sha=${IMAGE}:sha-${SHORT_SHA}"
+            echo "tag_date=${IMAGE}:${DATE_TAG}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ steps.meta.outputs.tag_latest }}
+            ${{ steps.meta.outputs.tag_sha }}
+            ${{ steps.meta.outputs.tag_date }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
