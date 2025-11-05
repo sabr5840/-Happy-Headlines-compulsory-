@@ -98,6 +98,7 @@ services:
     environment:
       DB_USER: happy_user
       DB_PASSWORD: secretpassword
+      # tracing
       OTEL_SERVICE_NAME: articleservice
       JAEGER_ENDPOINT: http://jaeger:14268/api/traces
     depends_on:
@@ -132,6 +133,7 @@ services:
       DB_PASSWORD: secretpassword
       DB_HOST: comment_db
       DB_NAME: happyheadlines_comments
+      # tracing
       OTEL_SERVICE_NAME: commentservice
       JAEGER_ENDPOINT: http://jaeger:14268/api/traces
       PROFANITY_URL: http://profanityservice:4000
@@ -160,6 +162,7 @@ services:
       DB_PASSWORD: secretpassword
       DB_HOST: profanity_db
       DB_NAME: happyheadlines_profanity
+      # tracing
       OTEL_SERVICE_NAME: profanityservice
       JAEGER_ENDPOINT: http://jaeger:14268/api/traces
     depends_on:
@@ -194,6 +197,7 @@ services:
       DB_PASSWORD: secretpassword
       DB_HOST: draft_db
       DB_NAME: happyheadlines_drafts
+      # tracing
       OTEL_SERVICE_NAME: draftservice
       JAEGER_ENDPOINT: http://jaeger:14268/api/traces
       OTEL_LOG_LEVEL: info
@@ -254,6 +258,9 @@ services:
     depends_on:
       - redis_queue
       - jaeger
+      SUBSCRIBER_ENABLED: "true"    # kan sættes til "false" for at slukke
+    depends_on:
+      - subscriber_db
 
 volumes:
   db-europe-data:
