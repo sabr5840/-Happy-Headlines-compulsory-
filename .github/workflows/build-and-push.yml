@@ -37,6 +37,9 @@ jobs:
           - service: newsletterservice
             context: ./microservice-newsletter
             dockerfile: ./microservice-newsletter/Dockerfile
+          - service: subscriberservice
+            context: ./microservice-subscriber
+            dockerfile: ./microservice-subscriber/Dockerfile
 
     steps:
       - name: Checkout
