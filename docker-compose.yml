@@ -236,6 +236,7 @@ services:
       DB_NAME: happyheadlines_subscribers
       REDIS_URL: redis://redis_queue:6379
       ADMIN_TOKEN: supersecret-admin
+      SUBSCRIBER_ENABLED: "true"   # start-tilstand (kan slås fra/til runtime)
       SUBSCRIBER_TOGGLE_DEFAULT: "on"
       OTEL_SERVICE_NAME: subscriberservice
       JAEGER_ENDPOINT: http://jaeger:14268/api/traces
@@ -254,7 +255,7 @@ services:
       SUBSCRIBER_API: http://subscriberservice:3003
       OTEL_SERVICE_NAME: newsletterservice
       JAEGER_ENDPOINT: http://jaeger:14268/api/traces
-      ENABLE_WORKER: "on" #slå baggrundsworker fra under test
+      ENABLE_WORKER: "on" #slå til og fra som baggrundsworker under test
       SUBSCRIBER_ENABLED: "true"    # kan sættes til "false" for at slukke
     depends_on:
       - redis_queue
