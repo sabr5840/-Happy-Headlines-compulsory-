@@ -89,7 +89,7 @@ services:
       - "16686:16686"   # UI
       - "14268:14268"   # HTTP ingest (Jaeger exporter)
 
-  # --- Services ---
+  # --- ArticleService ---
   articleservice:
     build: ./microservice-article
     image: happyheadlines-articleservice:latest
@@ -112,6 +112,7 @@ services:
       - db_global
       - jaeger
 
+  # --- Comment service + DB ---
   comment_db:
     image: postgres:15
     environment:
@@ -140,6 +141,7 @@ services:
       - comment_db
       - jaeger
 
+  # --- Profanity service + DB ---
   profanity_db:
     image: postgres:15
     environment:
@@ -167,6 +169,7 @@ services:
       - profanity_db
       - jaeger
 
+  # --- Draft service + DB ---
   draft_db:
     image: postgres:15
     environment:
@@ -205,6 +208,7 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  # --- Subscriber DB + Queue + Services (NYE) ---
   subscriber_db:
     image: postgres:15
     environment:
@@ -214,6 +218,11 @@ services:
     volumes:
       - subscriber-db-data:/var/lib/postgresql/data
       - ./db/subscriber_init.sql:/docker-entrypoint-initdb.d/subscriber_init.sql:ro
+
+  redis_queue:
+    image: redis:7
+    # ports:
+    #   - "6379:6379"   # kun nødvendigt hvis du vil tilgå Redis fra værtsmaskinen
 
   subscriberservice:
     build: ./microservice-subscriber
@@ -225,6 +234,30 @@ services:
       DB_PASSWORD: secretpassword
       DB_HOST: subscriber_db
       DB_NAME: happyheadlines_subscribers
+      REDIS_URL: redis://redis_queue:6379
+      ADMIN_TOKEN: supersecret-admin
+      SUBSCRIBER_TOGGLE_DEFAULT: "on"
+      OTEL_SERVICE_NAME: subscriberservice
+      JAEGER_ENDPOINT: http://jaeger:14268/api/traces
+    depends_on:
+      - subscriber_db
+      - redis_queue
+      - jaeger
+
+  newsletterservice:
+    build: ./microservice-newsletter
+    image: happyheadlines-newsletterservice:latest
+    ports:
+      - "3004:3004"
+    environment:
+      REDIS_URL: redis://redis_queue:6379
+      SUBSCRIBER_API: http://subscriberservice:3003
+      OTEL_SERVICE_NAME: newsletterservice
+      JAEGER_ENDPOINT: http://jaeger:14268/api/traces
+      ENABLE_WORKER: "on" #slå baggrundsworker fra under test
+    depends_on:
+      - redis_queue
+      - jaeger
       SUBSCRIBER_ENABLED: "true"    # kan sættes til "false" for at slukke
     depends_on:
       - subscriber_db
