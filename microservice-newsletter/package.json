@@ -1,0 +1,13 @@
+{
+  "name": "newsletterservice",
+  "type": "module",
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "express": "^5.1.0",
+    "axios": "^1.7.7",
+    "ioredis": "^5.4.1",
+    "@opentelemetry/sdk-node": "^0.205.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.64.6",
+    "@opentelemetry/exporter-jaeger": "^2.1.0"
+  }
+}
