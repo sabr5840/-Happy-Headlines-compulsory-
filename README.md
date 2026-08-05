@@ -4,7 +4,7 @@ Dette projekt er en nyhedsplatform med microservices, z-axis split, to cache-lag
 
 - **ArticleCache**: offline/periodisk preload af artikler fra seneste 14 dage og cache-first opslag
 - **CommentCache**: LRU (Least Recently Used) for maks 30 nøgler (pr. `article_id`-liste) med cache-miss approach
-- **/metrics** på begge services (hit/miss og hit ratio)
+- **/metrics** på begge services (hit/miss og hit ratio)..
 
 ---
 
